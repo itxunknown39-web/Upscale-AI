@@ -1,0 +1,47 @@
+# Adobe Stock AI Studio — Git ignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Virtual environments
+venv/
+env/
+.venv/
+ENV/
+
+# Colab / temp files
+.runtime_config.json
+*.ipynb_checkpoints/
+
+# Large output dirs (not stored in git)
+AdobeStockStudio/
+uploads/
+output/
+temp_output/
+archives/
+logs/
+failed/
+metadata/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Scratch
+scratch/
