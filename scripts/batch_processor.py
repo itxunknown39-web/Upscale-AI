@@ -105,6 +105,7 @@ class FileItem:
         # Error details per stage
         self.error_stage = ""    # "upscale" | "metadata"
         self.error_reason = ""
+        self.error_code = ""
         self.error_details = ""
 
         self.processing_seconds = 0.0
@@ -132,6 +133,7 @@ class FileItem:
             "metadata": self.metadata,
             "error_stage": self.error_stage,
             "error_reason": self.error_reason,
+            "error_code": self.error_code,
             "error_details": self.error_details,
             "processing_seconds": self.processing_seconds,
             "completed_at": self.completed_at,
@@ -507,6 +509,18 @@ def _run_qc_stage(item: FileItem, output_format: str):
         _log("WARNING", f"QC error for {item.output_name}: {e}")
 
 
+def _clean_vram():
+    """Safely release unused GPU memory cache between processing stages."""
+    try:
+        import gc
+        gc.collect()
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
+
+
 def _run_metadata_stage(item: FileItem):
     """Run Ollama vision analysis and generate Adobe Stock metadata."""
     item.status = "analyzing"
@@ -514,7 +528,9 @@ def _run_metadata_stage(item: FileItem):
     item.metadata_progress = 0
 
     _push_event("image_status", item.to_dict())
-    _log("INFO", f"Ollama analysis started: {item.output_name}")
+    _log("INFO", f"Ollama vision analysis started: {item.output_name}")
+
+    _clean_vram()
 
     try:
         from scripts.ollama_vision import analyze_image, get_ollama_status
@@ -523,24 +539,26 @@ def _run_metadata_stage(item: FileItem):
         if not ollama_st["ready"]:
             item.metadata_status = "failed"
             item.error_stage = "metadata"
-            item.error_reason = f"Ollama not ready: {ollama_st['error']}"
-            _log("ERROR", f"Metadata FAILED for {item.output_name}: {item.error_reason}")
+            item.error_code = ollama_st.get("error_code", "OLLAMA_NOT_READY")
+            item.error_reason = f"Ollama vision not ready: {ollama_st['error']}"
+            _log("ERROR", f"Metadata FAILED for {item.output_name}: [Code: {item.error_code}] {item.error_reason}")
             return False
 
-        item.metadata_progress = 20
-        _push_event("metadata_progress", {"file_id": item.id, "progress": 20})
+        item.metadata_progress = 25
+        _push_event("metadata_progress", {"file_id": item.id, "progress": 25})
 
         meta = analyze_image(item.output_path)
 
-        item.metadata_progress = 80
-        _push_event("metadata_progress", {"file_id": item.id, "progress": 80})
+        item.metadata_progress = 85
+        _push_event("metadata_progress", {"file_id": item.id, "progress": 85})
 
         if meta.get("error"):
             item.metadata_status = "failed"
             item.error_stage = "metadata"
-            item.error_reason = "Ollama analysis error"
-            item.error_details = meta["error"]
-            _log("ERROR", f"Metadata FAILED for {item.output_name}: {meta['error']}")
+            item.error_code = meta.get("error_code", "METADATA_GENERATION_FAILED")
+            item.error_reason = meta["error"]
+            item.error_details = f"Model: {ollama_st.get('model', 'unknown')} | Code: {item.error_code}"
+            _log("ERROR", f"Metadata FAILED for {item.output_name}: [{item.error_code}] {meta['error']}")
             return False
 
         # Store metadata on item
@@ -562,13 +580,17 @@ def _run_metadata_stage(item: FileItem):
         item.metadata_progress = 100
         _push_event("metadata_progress", {"file_id": item.id, "progress": 100})
         _log("SUCCESS", f"Metadata generated for {item.output_name}: \"{meta.get('title', '')[:60]}...\"")
+        
+        _clean_vram()
         return True
 
     except Exception as e:
         item.metadata_status = "failed"
         item.error_stage = "metadata"
+        item.error_code = "METADATA_EXCEPTION"
         item.error_reason = str(e)
         _log("ERROR", f"Metadata exception for {item.output_name}: {e}")
+        _clean_vram()
         return False
 
 

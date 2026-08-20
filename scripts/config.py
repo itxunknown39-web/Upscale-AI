@@ -26,10 +26,23 @@ PRE_PAD = 10
 # ──────────────────────────────────────────────
 # Ollama Configuration
 # ──────────────────────────────────────────────
-OLLAMA_HOST = "http://127.0.0.1:11434"
-OLLAMA_TIMEOUT = 120  # seconds per inference call
-# Preferred vision models in order (first available will be used)
-OLLAMA_VISION_MODELS = ["llava:13b", "llava:7b", "llava", "bakllava", "moondream", "llava:latest"]
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
+OLLAMA_VISION_MODEL = os.environ.get("OLLAMA_VISION_MODEL", "moondream")
+OLLAMA_TIMEOUT = int(os.environ.get("OLLAMA_TIMEOUT", 180))  # 180 seconds per vision inference call
+OLLAMA_MAX_RETRIES = 3
+OLLAMA_JSON_MAX_RETRIES = 3
+
+# Preferred vision models in fallback order (tested with actual image inputs)
+OLLAMA_VISION_MODELS = [
+    "moondream",
+    "moondream:latest",
+    "llava:7b",
+    "llava",
+    "llava:latest",
+    "bakllava",
+    "llama3.2-vision",
+    "minicpm-v",
+]
 OLLAMA_MODEL_PULL_TIMEOUT = 900  # 15 min max pull time
 
 # ──────────────────────────────────────────────

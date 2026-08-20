@@ -245,86 +245,150 @@ def build_cells() -> list:
 
     # ── CELL 7: Vision model detect / pull / test ─────────────────────────
     cells.append(code_cell(textwrap.dedent("""\
-        # ═══════════════════════════════════════════════════════
-        # CELL 7: Vision Model — Detect → Pull → Test
-        # ═══════════════════════════════════════════════════════
-        import requests, json, base64, io, time
-        from PIL import Image
+        # =======================================================
+        # CELL 7: Vision Model — Detect -> Pull -> Validate -> Fallback
+        # =======================================================
+        import requests, json, base64, io, time, os
+        from PIL import Image, ImageDraw
 
-        OLLAMA_HOST = 'http://127.0.0.1:11434'
-        PREFERRED_MODELS = ['moondream', 'llava:7b', 'llava', 'bakllava', 'llava:13b']
+        OLLAMA_HOST = os.environ.get('OLLAMA_HOST', 'http://127.0.0.1:11434')
+        OLLAMA_VISION_MODELS = [
+            'moondream',
+            'moondream:latest',
+            'llava:7b',
+            'llava',
+            'llava:latest',
+            'bakllava',
+            'llama3.2-vision',
+            'minicpm-v',
+        ]
 
-        # ── 1. List installed ────────────────────────────────────────────
-        installed = [m['name'] for m in requests.get(
-            f'{OLLAMA_HOST}/api/tags', timeout=10
-        ).json().get('models', [])]
-        print(f"Installed models: {installed or 'none'}")
+        print("=" * 55)
+        print("  OLLAMA VISION MODEL VALIDATION")
+        print("=" * 55)
 
-        # ── 2. Find vision model ─────────────────────────────────────────
-        active_model = None
-        for pref in PREFERRED_MODELS:
-            for inst in installed:
-                if pref.split(':')[0] in inst:
-                    active_model = inst
-                    break
-            if active_model: break
-
-        # ── 3. Pull if none found ────────────────────────────────────────
-        if not active_model:
-            pull_target = 'moondream'   # smallest vision model
-            print(f"Pulling {pull_target}… (first run: 5-15 min)")
-            with requests.post(f'{OLLAMA_HOST}/api/pull',
-                               json={'name': pull_target},
-                               stream=True, timeout=900) as resp:
-                last = -1
-                for line in resp.iter_lines():
-                    if not line: continue
-                    try:
-                        obj = json.loads(line)
-                        if obj.get('total',0) > 0:
-                            pct = int(obj['completed']/obj['total']*100)
-                            if pct//10 != last//10:
-                                print(f"  Pulling: {pct}%")
-                                last = pct
-                    except Exception: pass
-
-            installed2 = [m['name'] for m in requests.get(
-                f'{OLLAMA_HOST}/api/tags', timeout=5
-            ).json().get('models', [])]
-            for inst in installed2:
-                if pull_target.split(':')[0] in inst:
-                    active_model = inst; break
-
-        if not active_model:
-            raise RuntimeError(
-                "No vision model available.\\n"
-                "Run: !ollama pull moondream   then re-run this cell."
-            )
-        print(f"Active vision model: {active_model}")
-
-        # ── 4. Inference test ────────────────────────────────────────────
-        print("Running vision inference test…")
+        # ── 1. Create Patterned Test Image (256x256) ─────────────────────
+        # Guarantees vision token activation across SigLIP / CLIP encoders
+        test_img = Image.new('RGB', (256, 256), color=(30, 60, 120))
+        draw = ImageDraw.Draw(test_img)
+        draw.rectangle([20, 20, 100, 100], fill=(220, 80, 40), outline=(255, 255, 255))
+        draw.ellipse([120, 50, 220, 150], fill=(40, 180, 90), outline=(255, 255, 255))
+        draw.polygon([(128, 160), (60, 230), (196, 230)], fill=(240, 200, 30))
+        draw.line([(0, 0), (256, 256)], fill=(255, 255, 255), width=3)
         buf = io.BytesIO()
-        Image.new('RGB', (64, 64), (100, 149, 237)).save(buf, 'JPEG')
-        img_b64 = base64.b64encode(buf.getvalue()).decode()
+        test_img.save(buf, format='JPEG', quality=90)
+        img_b64 = base64.b64encode(buf.getvalue()).decode('ascii')
 
-        resp = requests.post(f'{OLLAMA_HOST}/api/generate', json={
-            'model': active_model,
-            'prompt': 'What is the main color of this image? One word.',
-            'images': [img_b64], 'stream': False
-        }, timeout=90)
+        # ── 2. List Installed Models ─────────────────────────────────────
+        try:
+            r = requests.get(f'{OLLAMA_HOST}/api/tags', timeout=10)
+            installed = [m['name'] for m in r.json().get('models', []) if 'name' in m]
+            print(f"Installed Ollama models: {installed or 'none'}")
+        except Exception as e:
+            installed = []
+            print(f"[WARN] Could not list models: {e}")
 
-        if resp.status_code != 200 or not resp.json().get('response'):
-            raise RuntimeError(f"Vision inference FAILED: {resp.text[:300]}")
+        # ── 3. Helper: Query Vision (Chat + Generate Dual Endpoint) ──────
+        def query_vision_test(model_name, b64_data):
+            test_prompt = "Describe the colors, shapes, and objects in this image in one or two clear sentences."
+            
+            # Try /api/chat first (Primary & standard for multimodal)
+            try:
+                chat_payload = {
+                    "model": model_name,
+                    "messages": [{"role": "user", "content": test_prompt, "images": [b64_data]}],
+                    "stream": False,
+                    "options": {"temperature": 0.2, "num_predict": 200}
+                }
+                cr = requests.post(f'{OLLAMA_HOST}/api/chat', json=chat_payload, timeout=120)
+                if cr.status_code == 200:
+                    content = cr.json().get("message", {}).get("content", "").strip()
+                    if content:
+                        return True, content, "/api/chat"
+                    else:
+                        print(f"  [/api/chat] Returned empty content. done={cr.json().get('done')}, reason={cr.json().get('done_reason')}")
+            except Exception as ce:
+                print(f"  [/api/chat] Error: {ce}")
 
-        print(f"✓ Vision test PASSED: \\"{resp.json()['response'][:60]}\\"")
+            # Try /api/generate fallback
+            try:
+                gen_payload = {
+                    "model": model_name,
+                    "prompt": test_prompt,
+                    "images": [b64_data],
+                    "stream": False,
+                    "options": {"temperature": 0.2, "num_predict": 200}
+                }
+                gr = requests.post(f'{OLLAMA_HOST}/api/generate', json=gen_payload, timeout=120)
+                if gr.status_code == 200:
+                    resp_text = gr.json().get("response", "").strip()
+                    if resp_text:
+                        return True, resp_text, "/api/generate"
+                    else:
+                        print(f"  [/api/generate] Returned empty response. done={gr.json().get('done')}, reason={gr.json().get('done_reason')}")
+            except Exception as ge:
+                print(f"  [/api/generate] Error: {ge}")
 
-        # ── 5. Save runtime config ───────────────────────────────────────
-        import os
-        os.makedirs('/content/studio', exist_ok=True)
-        with open('/content/studio/.runtime_config.json', 'w') as f:
-            json.dump({'ollama_ready': True, 'ollama_model': active_model}, f)
-        print(f"✓ Ollama READY — model: {active_model}")
+            return False, "", "failed"
+
+        # ── 4. Candidate Validation Loop with Fallback ───────────────────
+        active_model = None
+        for candidate in OLLAMA_VISION_MODELS:
+            print(f"\\nTesting candidate vision model: '{candidate}'...")
+            base = candidate.split(":")[0].lower()
+            is_installed = any(base in inst.lower() for inst in installed)
+            
+            if not is_installed:
+                print(f"Model '{candidate}' not installed. Pulling...")
+                try:
+                    with requests.post(f'{OLLAMA_HOST}/api/pull', json={'name': candidate}, stream=True, timeout=900) as resp:
+                        last_pct = -1
+                        for line in resp.iter_lines():
+                            if line:
+                                try:
+                                    obj = json.loads(line)
+                                    if obj.get('total', 0) > 0:
+                                        pct = int(obj['completed'] / obj['total'] * 100)
+                                        if pct // 10 != last_pct // 10:
+                                            print(f"  Pulling {candidate}: {pct}%")
+                                            last_pct = pct
+                                except Exception:
+                                    pass
+                    r2 = requests.get(f'{OLLAMA_HOST}/api/tags', timeout=5)
+                    installed = [m['name'] for m in r2.json().get('models', [])]
+                except Exception as pe:
+                    print(f"  [WARN] Failed to pull '{candidate}': {pe}")
+                    continue
+
+            # Resolve full installed tag name
+            resolved_tag = candidate
+            for inst in installed:
+                if base in inst.lower():
+                    resolved_tag = inst
+                    break
+
+            # Execute vision inference test
+            print(f"Running image vision test on '{resolved_tag}'...")
+            success, text_out, endpoint = query_vision_test(resolved_tag, img_b64)
+            if success and text_out:
+                snippet = text_out.replace('\\n', ' ')[:90]
+                print(f"[OK] Vision inference test PASSED via {endpoint} on '{resolved_tag}'")
+                print(f"     Output: \\"{snippet}...\\"")
+                active_model = resolved_tag
+                break
+            else:
+                print(f"[WARN] Vision test failed on '{resolved_tag}'. Trying fallback model...")
+
+        # ── 5. Save Runtime Config or Final Status ───────────────────────
+        if active_model:
+            os.makedirs('/content/studio', exist_ok=True)
+            with open('/content/studio/.runtime_config.json', 'w') as f:
+                json.dump({'ollama_ready': True, 'ollama_model': active_model, 'vision_tested': True}, f)
+            print(f"\\n[OK] Ollama Vision READY -- Active Model: {active_model}")
+        else:
+            print("\\n[ERROR] No vision model passed the image inference test.")
+            print("         Please check that Ollama is running and has GPU access.")
+            raise RuntimeError("Ollama vision validation failed on all candidate models.")
     """)))
 
     # ── CELL 8: Python dependencies ───────────────────────────────────────

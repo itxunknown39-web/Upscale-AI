@@ -162,15 +162,22 @@ async def health():
     try:
         resources = get_system_resources()
         ollama = get_ollama_status()
+        drive_path = "/content/drive/MyDrive"
+        drive_mounted = os.path.exists(drive_path)
+
         return {
             "status": "ok",
-            "gpu": resources["gpu"],
-            "gpu_name": resources["gpu_name"],
-            "ram_usage": resources["ram_usage"],
-            "vram_usage": resources["vram_usage"],
-            "ollama_ready": ollama["ready"],
-            "ollama_model": ollama["model"],
-            "ollama_error": ollama["error"],
+            "gpu": resources.get("gpu", False),
+            "gpu_name": resources.get("gpu_name", "None"),
+            "ram_usage": resources.get("ram_usage", {}),
+            "vram_usage": resources.get("vram_usage", {}),
+            "ollama_ready": ollama.get("ready", False),
+            "ollama_model": ollama.get("model", ""),
+            "ollama_error": ollama.get("error", ""),
+            "ollama_error_code": ollama.get("error_code", ""),
+            "vision_tested": ollama.get("vision_tested", False),
+            "drive_mounted": drive_mounted,
+            "fastapi_status": "ok",
         }
     except Exception as e:
         logger.error(f"Health check error: {e}")
