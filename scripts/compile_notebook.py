@@ -114,33 +114,33 @@ def build_cells() -> list:
 
     # ── CELL 2: T4 GPU check ─────────────────────────────────────────────
     cells.append(code_cell(textwrap.dedent("""\
-        # ═══════════════════════════════════════════════════════
+        # =======================================================
         # CELL 2: T4 GPU Detection
-        # ═══════════════════════════════════════════════════════
+        # =======================================================
         import torch, sys
 
         print("=" * 55)
-        print("  ADOBE STOCK AI STUDIO — GPU Check")
+        print("  ADOBE STOCK AI STUDIO -- GPU Check")
         print("=" * 55)
 
         if not torch.cuda.is_available():
-            print("❌  No GPU detected!")
-            print("   Go to Runtime → Change runtime type → T4 GPU → Save")
+            print("[ERROR] No GPU detected!")
+            print("   Go to Runtime -> Change runtime type -> T4 GPU -> Save")
             raise SystemExit("GPU required.")
 
         gpu_name = torch.cuda.get_device_name(0)
         free_b, total_b = torch.cuda.mem_get_info(0)
         print(f"  GPU  : {gpu_name}")
         print(f"  VRAM : {free_b/1024**3:.1f} GB free / {total_b/1024**3:.1f} GB total")
-        print("  ✓ T4 GPU READY")
+        print("  [OK] T4 GPU READY")
         print("=" * 55)
     """)))
 
     # ── CELL 3: Drive mount ───────────────────────────────────────────────
     cells.append(code_cell(textwrap.dedent("""\
-        # ═══════════════════════════════════════════════════════
-        # CELL 3: Google Drive — Persistence
-        # ═══════════════════════════════════════════════════════
+        # =======================================================
+        # CELL 3: Google Drive -- Persistence
+        # =======================================================
         from google.colab import drive
         import os
 
@@ -151,50 +151,50 @@ def build_cells() -> list:
             os.makedirs(f'{STUDIO_DIR}/{sub}', exist_ok=True)
 
         if mount_drive:
-            print("Mounting Google Drive…")
+            print("Mounting Google Drive...")
             drive.mount('/content/drive')
             drive_path = '/content/drive/MyDrive/AdobeStockStudio'
             for sub in ['uploads','output','metadata','logs','archives','failed']:
                 os.makedirs(f'{drive_path}/{sub}', exist_ok=True)
-            print(f"✓ Drive mounted → {drive_path}")
+            print(f"[OK] Drive mounted -> {drive_path}")
         else:
-            print("Drive bypass — using local Colab storage only.")
+            print("Drive bypass -- using local Colab storage only.")
 
-        print("✓ Directory structure ready")
+        print("[OK] Directory structure ready")
     """)))
 
     # ── CELL 4: System dependencies (zstd FIRST) ─────────────────────────
     cells.append(code_cell(textwrap.dedent("""\
-        # ═══════════════════════════════════════════════════════
+        # =======================================================
         # CELL 4: System Dependencies (zstd must be FIRST)
-        # ═══════════════════════════════════════════════════════
+        # =======================================================
         import subprocess, sys
 
         def apt(pkgs):
             subprocess.run(['apt-get','install','-y','-qq'] + pkgs,
                            capture_output=True)
 
-        print("Installing system dependencies…")
+        print("Installing system dependencies...")
         subprocess.run(['apt-get','update','-qq'], capture_output=True)
 
         # zstd MUST be installed before Ollama
         apt(['zstd'])
-        print("  ✓ zstd")
+        print("  [OK] zstd")
 
         apt(['curl','wget','pv','libgl1-mesa-glx','libglib2.0-0'])
-        print("  ✓ curl, wget, libgl1, libglib2")
-        print("✓ System dependencies ready")
+        print("  [OK] curl, wget, libgl1, libglib2")
+        print("[OK] System dependencies ready")
     """)))
 
     # ── CELL 5: Install Ollama ────────────────────────────────────────────
     cells.append(code_cell(textwrap.dedent("""\
-        # ═══════════════════════════════════════════════════════
-        # CELL 5: Install Ollama (local AI — no external API)
-        # ═══════════════════════════════════════════════════════
+        # =======================================================
+        # CELL 5: Install Ollama (local AI -- no external API)
+        # =======================================================
         import subprocess, shutil
 
         if not shutil.which('ollama'):
-            print("Installing Ollama…")
+            print("Installing Ollama...")
             result = subprocess.run(
                 'curl -fsSL https://ollama.com/install.sh | sh',
                 shell=True, capture_output=True, text=True
@@ -202,16 +202,16 @@ def build_cells() -> list:
             if result.returncode != 0:
                 print("STDERR:", result.stderr[-500:])
                 raise RuntimeError("Ollama installation failed")
-            print("✓ Ollama installed")
+            print("[OK] Ollama installed")
         else:
-            print(f"✓ Ollama already installed: {shutil.which('ollama')}")
+            print(f"[OK] Ollama already installed: {shutil.which('ollama')}")
     """)))
 
     # ── CELL 6: Start Ollama server ───────────────────────────────────────
     cells.append(code_cell(textwrap.dedent("""\
-        # ═══════════════════════════════════════════════════════
+        # =======================================================
         # CELL 6: Start Ollama Server
-        # ═══════════════════════════════════════════════════════
+        # =======================================================
         import subprocess, time, requests
 
         OLLAMA_HOST = 'http://127.0.0.1:11434'
@@ -219,12 +219,12 @@ def build_cells() -> list:
         # Check if already running
         try:
             if requests.get(f'{OLLAMA_HOST}/api/tags', timeout=2).status_code == 200:
-                print("✓ Ollama already running")
+                print("[OK] Ollama already running")
                 ollama_proc = None
             else:
                 raise Exception()
         except Exception:
-            print("Starting Ollama server…")
+            print("Starting Ollama server...")
             ollama_proc = subprocess.Popen(
                 ['ollama', 'serve'],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
@@ -234,7 +234,7 @@ def build_cells() -> list:
             for i in range(40):
                 try:
                     if requests.get(f'{OLLAMA_HOST}/api/tags', timeout=2).ok:
-                        print(f"✓ Ollama server ready (took {i+1}s)")
+                        print(f"[OK] Ollama server ready (took {i+1}s)")
                         break
                 except Exception:
                     pass
@@ -414,24 +414,24 @@ def build_cells() -> list:
         print("  ✓ basicsr, realesrgan")
 
         pip(['opencv-python-headless'])
-        print("  ✓ opencv-python-headless")
+        print("  [OK] opencv-python-headless")
 
         # torchvision compat patch
         import sys as _sys
         try:
             import torchvision.transforms.functional as _F
             _sys.modules['torchvision.transforms.functional_tensor'] = _F
-            print("  ✓ torchvision compat patch")
+            print("  [OK] torchvision compat patch")
         except Exception: pass
 
-        print("✓ Python dependencies installed")
+        print("[OK] Python dependencies installed")
     """)))
 
     # ── CELL 9: Patch basicsr ─────────────────────────────────────────────
     cells.append(code_cell(textwrap.dedent("""\
-        # ═══════════════════════════════════════════════════════
+        # =======================================================
         # CELL 9: Patch basicsr (functional_tensor compat)
-        # ═══════════════════════════════════════════════════════
+        # =======================================================
         import os, sys
 
         # Apply sys.modules patch first
@@ -454,20 +454,20 @@ def build_cells() -> list:
                         'from torchvision.transforms.functional import rgb_to_grayscale'
                     )
                     open(deg_path, 'w').write(patched)
-                    print("✓ basicsr degradations.py patched")
+                    print("[OK] basicsr degradations.py patched")
                 else:
-                    print("✓ basicsr does not need patching")
+                    print("[OK] basicsr does not need patching")
         except Exception as e:
             print(f"  Note: basicsr patch: {e}")
 
-        print("✓ basicsr ready")
+        print("[OK] basicsr ready")
     """)))
 
     # ── CELL 10: Real-ESRGAN setup ────────────────────────────────────────
     cells.append(code_cell(textwrap.dedent("""\
-        # ═══════════════════════════════════════════════════════
+        # =======================================================
         # CELL 10: Real-ESRGAN Weights + Inference Script
-        # ═══════════════════════════════════════════════════════
+        # =======================================================
         import os, subprocess, shutil
 
         STUDIO = '/content/studio'
@@ -477,26 +477,24 @@ def build_cells() -> list:
         # Model weights
         WEIGHT_FILE = f'{WEIGHTS_DIR}/RealESRGAN_x4plus.pth'
         if not os.path.exists(WEIGHT_FILE):
-            print("Downloading RealESRGAN_x4plus weights (~67 MB)…")
+            print("Downloading RealESRGAN_x4plus weights (~67 MB)...")
             subprocess.run([
                 'wget', '-q', '-O', WEIGHT_FILE,
                 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth'
             ], check=True)
-            print("✓ Weights downloaded")
+            print("[OK] Weights downloaded")
         else:
-            print(f"✓ Weights present: {WEIGHT_FILE}")
+            print(f"[OK] Weights present: {WEIGHT_FILE}")
 
         # Clone Real-ESRGAN for inference script
         RESRGAN_DIR = '/content/Real-ESRGAN'
         if not os.path.exists(RESRGAN_DIR):
-            print("Cloning Real-ESRGAN repo…")
+            print("Cloning Real-ESRGAN repo...")
             subprocess.run(
                 ['git', 'clone', '--depth=1',
                  'https://github.com/xinntao/Real-ESRGAN.git', RESRGAN_DIR],
                 check=True, capture_output=True
             )
-            print("✓ Real-ESRGAN cloned")
-        else:
             print("[OK] Real-ESRGAN cloned")
         else:
             print("[OK] Real-ESRGAN already present")
@@ -620,9 +618,9 @@ def build_cells() -> list:
 
     # ── CELL 15: Start FastAPI backend ────────────────────────────────────
     cells.append(code_cell(textwrap.dedent("""\
-        # ═══════════════════════════════════════════════════════
+        # =======================================================
         # CELL 15: Start FastAPI Backend
-        # ═══════════════════════════════════════════════════════
+        # =======================================================
         import subprocess, sys, os, time, requests
 
         STUDIO = '/content/studio'
@@ -631,7 +629,7 @@ def build_cells() -> list:
         env = os.environ.copy()
         env['PYTHONPATH'] = STUDIO
 
-        print("Starting FastAPI (uvicorn)…")
+        print("Starting FastAPI (uvicorn)...")
         server_proc = subprocess.Popen(
             [sys.executable, '-m', 'uvicorn', 'app.main:app',
              '--host', '0.0.0.0', '--port', '8000',
@@ -646,34 +644,34 @@ def build_cells() -> list:
                 r = requests.get('http://localhost:8000/api/health', timeout=2)
                 if r.ok:
                     h = r.json()
-                    print(f"✓ FastAPI running (took {i+1}s)")
-                    print(f"  GPU     : {h.get('gpu_name','—')}")
-                    print(f"  Ollama  : {'Ready (' + h.get('ollama_model','?') + ')' if h.get('ollama_ready') else 'Initializing…'}")
+                    print(f"[OK] FastAPI running (took {i+1}s)")
+                    print(f"  GPU     : {h.get('gpu_name','None')}")
+                    print(f"  Ollama  : {'Ready (' + h.get('ollama_model','?') + ')' if h.get('ollama_ready') else 'Initializing...'}")
                     break
             except Exception:
                 pass
             time.sleep(1)
         else:
-            print("⚠ Backend may still be starting. Check output above.")
+            print("[WARN] Backend may still be starting. Check output above.")
             print("  Run: !curl http://localhost:8000/api/health")
     """)))
 
     # ── CELL 16: Cloudflare tunnel + display URL ──────────────────────────
     cells.append(code_cell(textwrap.dedent("""\
-        # ═══════════════════════════════════════════════════════
+        # =======================================================
         # CELL 16: Cloudflare Tunnel + Final URL
-        # ═══════════════════════════════════════════════════════
+        # =======================================================
         import subprocess, threading, time, re, shutil, requests
 
         # Install cloudflared if missing
         if not shutil.which('cloudflared'):
-            print("Installing cloudflared…")
+            print("Installing cloudflared...")
             subprocess.run([
                 'wget', '-q', '-O', '/usr/local/bin/cloudflared',
                 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64'
             ], check=True)
             subprocess.run(['chmod', '+x', '/usr/local/bin/cloudflared'], check=True)
-            print("✓ cloudflared installed")
+            print("[OK] cloudflared installed")
 
         public_url = None
         url_event = threading.Event()
@@ -693,11 +691,11 @@ def build_cells() -> list:
         t = threading.Thread(target=_run_tunnel, daemon=True)
         t.start()
 
-        print("Waiting for Cloudflare tunnel…")
+        print("Waiting for Cloudflare tunnel...")
         url_event.wait(timeout=60)
 
         if not public_url:
-            print("⚠ Cloudflare URL not received within 60s.")
+            print("[WARN] Cloudflare URL not received within 60s.")
             print("  Try: !cloudflared tunnel --url http://localhost:8000")
         else:
             # Health check through public tunnel
@@ -711,26 +709,26 @@ def build_cells() -> list:
             bar = "=" * 57
             print()
             print(bar)
-            print("  ADOBE STOCK AI STUDIO — READY")
+            print("  ADOBE STOCK AI STUDIO -- READY")
             print(bar)
             print()
-            print(f"  T4 GPU       : ✓ Connected")
-            print(f"  Real-ESRGAN  : ✓ Ready")
-            print(f"  Ollama       : ✓ {active_model}")
-            print(f"  FastAPI      : ✓ Running :8000")
-            print(f"  Tunnel       : ✓ Active")
-            print(f"  Health Check : {'✓ PASS' if health_ok else '⚠ Check manually'}")
+            print(f"  T4 GPU       : [OK] Connected")
+            print(f"  Real-ESRGAN  : [OK] Ready")
+            print(f"  Ollama       : [OK] {active_model}")
+            print(f"  FastAPI      : [OK] Running :8000")
+            print(f"  Tunnel       : [OK] Active")
+            print(f"  Health Check : {'[OK] PASS' if health_ok else '[WARN] Check manually'}")
             print()
-            print(f"  ┌{'─'*53}┐")
-            print(f"  │  🌐  OPEN THIS URL IN YOUR BROWSER:              │")
-            print(f"  │  {public_url:<51}  │")
-            print(f"  └{'─'*53}┘")
+            print(f"  +---------------------------------------------------------+")
+            print(f"  |  PUBLIC URL:                                            |")
+            print(f"  |  {public_url:<55}|")
+            print(f"  +---------------------------------------------------------+")
             print()
             print("  Instructions:")
             print("  1. Open the URL above")
             print("  2. Drop images in the upload zone (all at once)")
-            print("  3. Wait for 100/100 Uploaded ✓")
-            print("  4. Click  ▶ Start Processing")
+            print("  3. Wait for all files uploaded")
+            print("  4. Click Start Processing")
             print("  5. Watch real-time progress")
             print("  6. Download ZIP / CSV / JSON when complete")
             print()
