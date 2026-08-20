@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Adobe Stock AI Upscaler</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Decoupled Stylesheet -->
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+  <!-- App Header -->
+  <header>
+    <div class="logo-container">
+      <svg viewBox="0 0 24 24">
+        <path d="M4 4h7v2H6v5H4V4m10 0h6v6h-2V6h-4V4M4 14h2v4h4v2H4v-6m16 0v6h-6v-2h4v-4h2M12 8.5L8.5 12H11v4h2v-4h2.5L12 8.5z"/>
+      </svg>
+      <div>
+        <h1>Adobe Stock AI Upscaler</h1>
+      </div>
+    </div>
+    <div class="system-status">
+      <div class="system-metrics" id="system-metrics" style="display: none;">
+        <div class="metric-item">
+          <span>RAM</span>
+          <span class="metric-value" id="system-ram">--/-- GB</span>
+        </div>
+        <div class="metric-item">
+          <span>VRAM</span>
+          <span class="metric-value" id="system-vram">--/-- GB</span>
+        </div>
+      </div>
+      <div class="status-badge">
+        <div class="status-dot" id="status-indicator"></div>
+        <span id="status-text">Connecting...</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Layout -->
+  <main>
+    
+    <!-- Sidebar Control Panel -->
+    <div class="sidebar">
+      
+      <!-- Settings Panel -->
+      <div class="glass-panel">
+        <h2>
+          <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.04,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
+          Processing Settings
+        </h2>
+        
+        <!-- Model Selection -->
+        <div class="form-group">
+          <label>AI Upscaling Model</label>
+          <div class="radio-grid">
+            <div class="radio-card">
+              <input type="radio" name="upscale_model" value="RealESRGAN_x4plus" checked>
+              <div class="radio-card-content">
+                <span>Real-ESRGAN</span>
+                <span class="radio-card-subtitle">Photo General</span>
+              </div>
+            </div>
+            <div class="radio-card">
+              <input type="radio" name="upscale_model" value="RealESRGAN_x4plus_anime_6B">
+              <div class="radio-card-content">
+                <span>Anime 6B</span>
+                <span class="radio-card-subtitle">Illustrations/Art</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Upscale Factor -->
+        <div class="form-group">
+          <label>Upscale Output Mode</label>
+          <div class="radio-grid three-cols">
+            <div class="radio-card">
+              <input type="radio" name="scale_mode" value="2">
+              <div class="radio-card-content">
+                <span>2×</span>
+                <span class="radio-card-subtitle">Factor scale</span>
+              </div>
+            </div>
+            <div class="radio-card">
+              <input type="radio" name="scale_mode" value="4" checked>
+              <div class="radio-card-content">
+                <span>4×</span>
+                <span class="radio-card-subtitle">Default scale</span>
+              </div>
+            </div>
+            <div class="radio-card">
+              <input type="radio" name="scale_mode" value="target">
+              <div class="radio-card-content">
+                <span>Target</span>
+                <span class="radio-card-subtitle">Custom res</span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Custom Resolution Inputs -->
+          <div id="target-res-inputs" class="number-input-group" style="display: none;">
+            <div>
+              <label style="font-size:0.75rem; margin-bottom:0.25rem;">Width (px)</label>
+              <input type="number" id="target-width" class="input-control" value="3840" min="500" max="10000">
+            </div>
+            <div>
+              <label style="font-size:0.75rem; margin-bottom:0.25rem;">Height (px)</label>
+              <input type="number" id="target-height" class="input-control" value="2160" min="500" max="10000">
+            </div>
+          </div>
+        </div>
+
+        <!-- Output Format -->
+        <div class="form-group">
+          <label>Output File Format</label>
+          <div class="radio-grid">
+            <div class="radio-card">
+              <input type="radio" name="output_format" value="jpg" checked>
+              <div class="radio-card-content">
+                <span>JPEG (.jpg)</span>
+                <span class="radio-card-subtitle">Adobe Standard</span>
+              </div>
+            </div>
+            <div class="radio-card">
+              <input type="radio" name="output_format" value="png">
+              <div class="radio-card-content">
+                <span>PNG (.png)</span>
+                <span class="radio-card-subtitle">Lossless/Alpha</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Upload Concurrency -->
+        <div class="form-group">
+          <label>Upload Concurrency Pool</label>
+          <select id="upload-concurrency" style="width: 100%; padding: 0.5rem; background: rgba(0,0,0,0.3); color: #fff; border: 1px solid var(--border-color); border-radius: 6px; font-family: inherit;">
+            <option value="2">2 Parallel Uploads</option>
+            <option value="4" selected>4 Parallel Uploads (Default)</option>
+            <option value="6">6 Parallel Uploads (Fast)</option>
+          </select>
+        </div>
+
+        <!-- JPEG Quality -->
+        <div class="form-group" id="jpeg-quality-group">
+          <label>JPEG Quality Level</label>
+          <div class="slider-input-wrapper">
+            <input type="range" id="jpeg-quality" min="80" max="100" value="95">
+            <span class="slider-value" id="jpeg-quality-val">95%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Panel -->
+      <div class="glass-panel actions-panel">
+        <button class="btn btn-primary" id="btn-start" disabled>
+          <svg viewBox="0 0 24 24"><path d="M8,5.14V19.14L19,12.14L8,5.14Z"/></svg>
+          Start Batch Upscale
+        </button>
+        <button class="btn" id="btn-retry-failed" style="display: none; background: rgba(234, 179, 8, 0.15); color: #eab308; border: 1px solid rgba(234, 179, 8, 0.3);">
+          <svg viewBox="0 0 24 24"><path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.86,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"/></svg>
+          Retry Failed Items
+        </button>
+        <button class="btn btn-danger" id="btn-cancel" disabled>
+          <svg viewBox="0 0 24 24"><path d="M12,2A10,10,0,1,0,22,12,10,10,0,0,0,12,2Zm5,11H7V11H17Z"/></svg>
+          Cancel Current Batch
+        </button>
+        <button class="btn btn-secondary" id="btn-download-all" disabled>
+          <svg viewBox="0 0 24 24"><path d="M19,12h-3v-4h-8v4h-3l7,7L19,12z M5,20h14v-2H5V20z"/></svg>
+          Download ZIP Package
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Right Workspace Area -->
+    <div class="workspace-area">
+      
+      <!-- Upload Drag and Drop Zone -->
+      <div class="dropzone-container">
+        <input type="file" id="file-uploader" multiple accept="image/png, image/jpeg, image/jpg" style="display: none;">
+        <div class="dropzone" id="dropzone">
+          <div class="dropzone-icon">
+            <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+          </div>
+          <div class="dropzone-title">Drag & Drop images here</div>
+          <div class="dropzone-subtitle">Supports JPG, JPEG, and PNG (Max 100MB per file)</div>
+        </div>
+      </div>
+
+      <!-- Dashboard Stats -->
+      <div class="dashboard-stats">
+        <div class="stat-card">
+          <span class="stat-label">Total Files</span>
+          <span class="stat-value" id="stat-total">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Completed</span>
+          <span class="stat-value success" id="stat-completed">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Failed</span>
+          <span class="stat-value error" id="stat-failed">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Speed</span>
+          <span class="stat-value accent" id="stat-speed">--</span>
+        </div>
+      </div>
+
+      <!-- Progress Panel -->
+      <div class="progress-bar-wrapper" id="progress-wrapper" style="display: none;">
+        <div class="progress-info">
+          <span class="progress-text" id="progress-status-text">Initializing batch...</span>
+          <span class="progress-pct" id="progress-percent">0%</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="progress-bar-fill"></div>
+        </div>
+        <div class="progress-info" style="font-size: 0.75rem; color: var(--text-dark); border-top: 1px solid var(--border-color); padding-top: 0.5rem; margin-top: 0.25rem;">
+          <span id="progress-details">Processed 0 of 0 files</span>
+          <span id="progress-eta">ETA: Calculating...</span>
+        </div>
+      </div>
+
+      <!-- Queue List Panel -->
+      <div class="queue-container glass-panel">
+        <div class="queue-header-actions">
+          <div class="queue-title">
+            Batch Queue
+            <span class="queue-count-badge" id="queue-badge">0 files</span>
+          </div>
+          <button class="btn btn-secondary" id="btn-clear-queue" style="width: auto; padding: 0.4rem 0.8rem; font-size: 0.8rem; border-radius: 6px;">
+            Clear Queue
+          </button>
+        </div>
+        
+        <div class="queue-table-wrapper">
+          <table class="queue-table" id="queue-table">
+            <thead>
+              <tr>
+                <th style="width: 70px;">Preview</th>
+                <th>File Name</th>
+                <th>Input Resolution</th>
+                <th>Estimated Output</th>
+                <th>Status</th>
+                <th>Technical QC</th>
+                <th style="width: 80px; text-align: center;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="queue-tbody">
+              <tr id="empty-row">
+                <td colspan="7">
+                  <div class="empty-queue-state">
+                    <svg viewBox="0 0 24 24"><path d="M19,4H5C3.89,4 3,4.89 3,6V18C3,19.11 3.89,20 5,20H19C20.11,20 21,19.11 21,18V6C21,4.89 20.11,4 19,4M19,18H5V8H19V18M12,10.5C13.38,10.5 14.5,11.62 14.5,13C14.5,14.38 13.38,15.5 12,15.5C10.62,15.5 9.5,14.38 9.5,13C9.5,11.62 10.62,10.5 12,10.5Z"/></svg>
+                    <div class="empty-queue-title">No images uploaded yet</div>
+                    <p style="font-size:0.75rem;">Drag JPG or PNG files above to get started</p>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Adobe Stock Disclaimer -->
+      <div class="qc-warning-banner">
+        <div class="qc-warning-icon">
+          <svg viewBox="0 0 24 24"><path d="M12,2L1,21H23L12,2M12,6L19.53,19H4.47L12,6M11,10V14H13V10H11M11,16V18H13V16H11Z"/></svg>
+        </div>
+        <div class="qc-warning-text">
+          <h4>Adobe Stock Technical QC Advisory</h4>
+          <p>Technical QC passed. Manually review AI artifacts, similarity, text errors, anatomy, logos and commercial suitability before submitting to Adobe Stock.</p>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Interactive Before/After Image Comparison Modal -->
+  <div class="modal-overlay" id="preview-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h3 id="modal-filename">Image Preview</h3>
+          <p id="modal-dimensions">Original: -- × -- | Upscaled: -- × --</p>
+        </div>
+        <button class="modal-close-btn" id="modal-close">
+          <svg viewBox="0 0 24 24"><path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        
+        <!-- Comparison Slider Container -->
+        <div class="slider-comparison-container" id="slider-container">
+          
+          <!-- Original Image -->
+          <div class="original-image-wrapper">
+            <img src="" class="slider-img" id="img-original" alt="Original Image">
+          </div>
+          
+          <!-- Upscaled Image -->
+          <div class="upscaled-image-wrapper" id="img-upscaled-wrapper">
+            <img src="" class="slider-img upscaled-img-absolute" id="img-upscaled" alt="Upscaled Image">
+          </div>
+          
+          <!-- Vertical Split Line -->
+          <div class="slider-handle-line" id="handle-line"></div>
+          
+          <!-- Drag Handle Knob -->
+          <div class="slider-handle-button" id="handle-button">
+            <svg viewBox="0 0 24 24"><path d="M8,14V18L2,12L8,6V10H16V6L22,12L16,18V14H8Z"/></svg>
+          </div>
+          
+          <!-- Invisible Slider Controller -->
+          <input type="range" min="0" max="100" value="50" class="range-controller" id="slider-range">
+          
+          <!-- Labels overlay -->
+          <div class="comparison-labels">
+            <span class="comparison-lbl">Upscaled Image</span>
+            <span class="comparison-lbl">Original</span>
+          </div>
+
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <div class="qc-summary-grid">
+          <div class="qc-summary-item">
+            <span>Technical QC:</span>
+            <span id="modal-qc-status" class="qc-badge">PASS</span>
+          </div>
+          <div class="qc-summary-item" style="color: var(--text-muted);">
+            <span>Megapixels:</span>
+            <span id="modal-qc-mp" style="color: #fff; font-family: monospace;">-- MP</span>
+          </div>
+          <div class="qc-summary-item" style="color: var(--text-muted);" id="modal-qc-ratio-container">
+            <span>Aspect Ratio:</span>
+            <span id="modal-qc-ratio" style="color: #fff; font-family: monospace;">--</span>
+          </div>
+        </div>
+        <button class="btn btn-secondary" id="modal-download-btn" style="width: auto; padding: 0.5rem 1rem; font-size: 0.85rem;">
+          <svg viewBox="0 0 24 24"><path d="M5,20H19V18H5V20M19,9H15V3H9V9H5L12,16L19,9Z"/></svg>
+          Download Single Image
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Technical Diagnostic Modal -->
+  <div class="modal-overlay" id="error-details-modal">
+    <div class="modal-card" style="max-width: 600px;">
+      <div class="modal-header">
+        <h3 id="error-modal-title" style="color: var(--state-error);">Technical Diagnostic Details</h3>
+        <button class="modal-close-btn" id="error-modal-close">✕</button>
+      </div>
+      <div class="modal-body" style="padding: 1.25rem;">
+        <p style="margin-bottom: 0.5rem;"><strong>Stage:</strong> <span id="error-modal-stage" style="color: #fff;"></span></p>
+        <p style="margin-bottom: 0.75rem;"><strong>Reason:</strong> <span id="error-modal-reason" style="color: var(--state-error);"></span></p>
+        <div>
+          <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Technical Log Output:</label>
+          <pre id="error-modal-trace" style="background: rgba(0,0,0,0.6); padding: 0.75rem; border-radius: 6px; font-family: monospace; font-size: 0.75rem; color: #fca5a5; max-height: 250px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; border: 1px solid var(--border-color);"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Decoupled Javascript App Logic -->
+  <script defer src="/static/app.js"></script>
+</body>
+</html>

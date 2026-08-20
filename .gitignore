@@ -1,47 +1,29 @@
-# Adobe Stock AI Studio — Git ignore
-
-# Python
+# Python caching
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.Python
-*.egg-info/
-dist/
-build/
-.eggs/
-*.egg
 
-# Virtual environments
-venv/
-env/
-.venv/
-ENV/
-
-# Colab / temp files
-.runtime_config.json
-*.ipynb_checkpoints/
-
-# Large output dirs (not stored in git)
-AdobeStockStudio/
-uploads/
+# Local upscaler workspace (temp inputs, outputs, logs, ZIPs)
+AdobeStockUpscaler/
+input/
 output/
-temp_output/
-archives/
-logs/
 failed/
-metadata/
+logs/
 
-# OS
-.DS_Store
-Thumbs.db
-desktop.ini
+# Pretrained model weights
+experiments/pretrained_models/
+*.pth
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
+# Cloudflared binaries
+cloudflared
 
-# Scratch
-scratch/
+# Jupyter checkpointing
+.ipynb_checkpoints/
+
+# Cloned dependencies
+Real-ESRGAN/
+inference_realesrgan.py
+
+# Environment variables
+.env
