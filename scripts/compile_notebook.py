@@ -433,16 +433,18 @@ def build_cells() -> list:
             )
             print("✓ Real-ESRGAN cloned")
         else:
-            print("✓ Real-ESRGAN already present")
+            print("[OK] Real-ESRGAN cloned")
+        else:
+            print("[OK] Real-ESRGAN already present")
 
         # Link inference script
         INFER_DST = f'{STUDIO}/inference_realesrgan.py'
         INFER_SRC = f'{RESRGAN_DIR}/inference_realesrgan.py'
         if not os.path.exists(INFER_DST) and os.path.exists(INFER_SRC):
             shutil.copy(INFER_SRC, INFER_DST)
-            print("✓ inference_realesrgan.py linked")
+            print("[OK] inference_realesrgan.py linked")
 
-        print("✓ Real-ESRGAN ready")
+        print("[OK] Real-ESRGAN ready")
     """)))
 
     # ── CELL 11: Write scripts/ ───────────────────────────────────────────
@@ -458,9 +460,9 @@ def build_cells() -> list:
     ]
 
     src_lines = [
-        "# ═══════════════════════════════════════════════════════\n",
+        "# =======================================================\n",
         "# CELL 11: Write All Application Scripts to Disk\n",
-        "# ═══════════════════════════════════════════════════════\n",
+        "# =======================================================\n",
         "import base64, os\n",
         f"STUDIO = '{STUDIO}'\n",
         "os.makedirs(f'{STUDIO}/scripts', exist_ok=True)\n",
@@ -478,20 +480,20 @@ def build_cells() -> list:
             f"_b64 = '{b64}'\n",
             f"os.makedirs('{safe_dir}', exist_ok=True)\n",
             f"open('{colab_path}', 'w', encoding='utf-8').write(base64.b64decode(_b64).decode())\n",
-            f"print('  ✓ {colab_rel}')\n",
+            f"print('  [OK] {colab_rel}')\n",
             "\n",
         ]
 
-    src_lines.append("print('✓ All scripts written')\n")
+    src_lines.append("print('[OK] All scripts written')\n")
     cells.append({"cell_type": "code", "execution_count": None,
                   "metadata": {}, "outputs": [], "source": src_lines})
 
     # ── CELL 12: Write app/main.py ────────────────────────────────────────
     main_b64 = _read_b64("app/main.py")
     cells.append(code_cell(textwrap.dedent(f"""\
-        # ═══════════════════════════════════════════════════════
+        # =======================================================
         # CELL 12: Write FastAPI Backend (app/main.py)
-        # ═══════════════════════════════════════════════════════
+        # =======================================================
         import base64, os
         STUDIO = '/content/studio'
         os.makedirs(f'{{STUDIO}}/app', exist_ok=True)
@@ -501,31 +503,31 @@ def build_cells() -> list:
         )
         # app/__init__.py
         open(f'{{STUDIO}}/app/__init__.py', 'w').write('')
-        print('✓ app/main.py written')
+        print('[OK] app/main.py written')
     """)))
 
     # ── CELL 13: Write app/index.html ────────────────────────────────────
     html_b64 = _read_b64("app/index.html")
     cells.append(code_cell(textwrap.dedent(f"""\
-        # ═══════════════════════════════════════════════════════
+        # =======================================================
         # CELL 13: Write Frontend (app/index.html)
-        # ═══════════════════════════════════════════════════════
+        # =======================================================
         import base64, os
         STUDIO = '/content/studio'
         _b64 = '{html_b64}'
         open(f'{{STUDIO}}/app/index.html', 'w', encoding='utf-8').write(
             base64.b64decode(_b64).decode('utf-8')
         )
-        print('✓ app/index.html written')
+        print('[OK] app/index.html written')
         print(f'  Size: {{len(base64.b64decode(_b64)):,}} bytes')
     """)))
 
     # ── CELL 14: Write requirements.txt + patch config path ───────────────
     req_b64 = _read_b64("requirements.txt")
     cells.append(code_cell(textwrap.dedent(f"""\
-        # ═══════════════════════════════════════════════════════
+        # =======================================================
         # CELL 14: Write requirements.txt + Verify File Structure
-        # ═══════════════════════════════════════════════════════
+        # =======================================================
         import base64, os, sys
         STUDIO = '/content/studio'
 
@@ -549,7 +551,7 @@ def build_cells() -> list:
                 print(f'{{indent}}  {{f}}')
 
         print()
-        print('✓ File structure verified')
+        print('[OK] File structure verified')
     """)))
 
     # ── CELL 15: Start FastAPI backend ────────────────────────────────────
