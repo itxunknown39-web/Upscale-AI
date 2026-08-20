@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import queue
+import re
 import shutil
 import threading
 import time
@@ -297,11 +298,18 @@ def _write_master_metadata():
     with metadata_lock:
         store_snapshot = dict(metadata_store)
 
+    def _nat_sort_key(k):
+        m = re.search(r'\d+', k)
+        return int(m.group(0)) if m else 0
+
+    sorted_entries = sorted(store_snapshot.items(), key=lambda x: _nat_sort_key(x[0]))
+    sorted_dict = {k: v for k, v in sorted_entries}
+
     # JSON
     json_path = os.path.join(metadata_dir, JSON_FILENAME)
     try:
         with open(json_path, "w", encoding="utf-8") as f:
-            json.dump(store_snapshot, f, indent=2, ensure_ascii=False)
+            json.dump(sorted_dict, f, indent=2, ensure_ascii=False)
     except Exception as e:
         logger.error(f"Failed to write JSON: {e}")
 
@@ -311,7 +319,7 @@ def _write_master_metadata():
         with open(csv_path, "w", encoding="utf-8-sig", newline="") as f:
             writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
             writer.writerow(CSV_COLUMNS)
-            for filename, meta in store_snapshot.items():
+            for filename, meta in sorted_entries:
                 keywords_str = ", ".join(meta.get("keywords", [])[:MAX_KEYWORDS])
                 writer.writerow([
                     filename,
