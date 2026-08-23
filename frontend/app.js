@@ -159,6 +159,70 @@ fileUploader.addEventListener('change', (e) => {
   }
 });
 
+// Google Drive Input Scan Handler
+const btnScanDrive = document.getElementById('btn-scan-drive');
+if (btnScanDrive) {
+  btnScanDrive.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (state.processing) return;
+    btnScanDrive.disabled = true;
+    btnScanDrive.textContent = '⏳ Scanning Drive...';
+
+    try {
+      const res = await fetch('/api/scan-drive-input', { method: 'POST' });
+      const data = await res.json();
+
+      if (data.files && data.files.length > 0) {
+        let addedCount = 0;
+        for (const f of data.files) {
+          const fingerprint = `server_${f.id}_${f.name}`;
+          if (uploadedFingerprints.has(fingerprint)) continue;
+          uploadedFingerprints.add(fingerprint);
+
+          const driveItem = {
+            id: 'loc_' + Math.random().toString(36).substr(2, 9),
+            serverId: f.id,
+            blob: null,
+            name: f.name,
+            size: f.size,
+            width: f.width,
+            height: f.height,
+            megapixels: f.megapixels,
+            thumbnail: '',
+            status: 'ready',
+            uploadPercent: 100,
+            uploadSpeed: 0.0,
+            output: null,
+            qc: { passed: true, hard_failures: [], warnings: [] },
+            error_stage: '',
+            error_reason: '',
+            error_details: '',
+            processing_seconds: 0.0
+          };
+          state.files.push(driveItem);
+          addedCount++;
+        }
+
+        updateQueueTable();
+        updateOverallProgress();
+        btnStart.disabled = false;
+        alert(`Successfully imported ${addedCount} images directly from Google Drive input folder!`);
+      } else {
+        alert(data.message || `No new images found in Google Drive folder:\n${data.folder || 'AdobeStockUpscaler/input'}\n\nPlease place your .jpg/.png images in that folder and click again.`);
+      }
+    } catch (err) {
+      alert(`Failed to scan Google Drive folder: ${err.message}`);
+    } finally {
+      btnScanDrive.disabled = false;
+      btnScanDrive.innerHTML = `
+        <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: currentColor;"><path d="M19,20H4C2.89,20 2,19.1 2,18V6C2,4.89 2.89,4 4,4H10L12,6H19A2,2 0 0,1 21,8H21L4,8V18L6.14,10H23.21L20.93,18.5C20.7,19.37 19.92,20 19,20Z"/></svg>
+        📁 Load from Drive Folder (AdobeStockUpscaler/input)
+      `;
+    }
+  });
+}
+
+
 // File Batch Processing Handler
 async function handleFileSelection(rawFiles) {
   let addedCount = 0;

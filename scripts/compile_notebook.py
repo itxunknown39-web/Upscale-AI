@@ -50,11 +50,12 @@ def compile_notebook():
                 "    print(\"Mounting Google Drive...\")\n",
                 "    drive.mount('/content/drive')\n",
                 "    drive_path = \"/content/drive/MyDrive/AdobeStockUpscaler\"\n",
+                "    os.makedirs(os.path.join(drive_path, \"input\"), exist_ok=True)\n",
                 "    os.makedirs(os.path.join(drive_path, \"output\"), exist_ok=True)\n",
                 "    os.makedirs(os.path.join(drive_path, \"failed\"), exist_ok=True)\n",
                 "    os.makedirs(os.path.join(drive_path, \"logs\"), exist_ok=True)\n",
                 "    os.makedirs(os.path.join(drive_path, \"archives\"), exist_ok=True)\n",
-                "    print(f\"Google Drive successfully mapped! All upscaled images will automatically save to: {drive_path}/output\")\n",
+                "    print(f\"Google Drive successfully mapped!\\n - Inputs folder:  {drive_path}/input\\n - Outputs folder: {drive_path}/output\")\n",
                 "else:\n",
                 "    print(\"Drive bypass chosen. All outputs will be stored temporarily in local Colab storage.\")"
             ]

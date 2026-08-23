@@ -13,6 +13,14 @@ try:
 except Exception:
     pass
 
+import math
+import cv2
+import numpy as np
+
+# Ensure basicsr shim and RRDBNet are available
+from scripts.rrdbnet import RRDBNet, register_basicsr_shim
+register_basicsr_shim()
+
 # Import centralized configuration
 from scripts.config import TEMP_OUTPUT_DIR, TILE_SIZE, TILE_PAD, PRE_PAD
 
@@ -30,31 +38,74 @@ def set_active_subprocess(proc):
     global active_subprocess
     active_subprocess = proc
 
+def tile_process(model, img_tensor, tile_size=400, tile_pad=10, scale=4):
+    """
+    Pure PyTorch tiled super-resolution inference to prevent VRAM allocation overflows.
+    """
+    batch, channel, height, width = img_tensor.shape
+    output_height = height * scale
+    output_width = width * scale
+    output_shape = (batch, channel, output_height, output_width)
+
+    output = img_tensor.new_zeros(output_shape)
+    tiles_x = math.ceil(width / tile_size)
+    tiles_y = math.ceil(height / tile_size)
+
+    for y in range(tiles_y):
+        for x in range(tiles_x):
+            ofs_x = x * tile_size
+            ofs_y = y * tile_size
+            input_start_x = ofs_x
+            input_end_x = min(ofs_x + tile_size, width)
+            input_start_y = ofs_y
+            input_end_y = min(ofs_y + tile_size, height)
+
+            pad_start_x = max(input_start_x - tile_pad, 0)
+            pad_end_x = min(input_end_x + tile_pad, width)
+            pad_start_y = max(input_start_y - tile_pad, 0)
+            pad_end_y = min(input_end_y + tile_pad, height)
+
+            input_tile = img_tensor[:, :, pad_start_y:pad_end_y, pad_start_x:pad_end_x]
+            with torch.no_grad():
+                output_tile = model(input_tile)
+
+            out_pad_top = (input_start_y - pad_start_y) * scale
+            out_pad_bot = out_pad_top + (input_end_y - input_start_y) * scale
+            out_pad_left = (input_start_x - pad_start_x) * scale
+            out_pad_right = out_pad_left + (input_end_x - input_start_x) * scale
+
+            dest_top = input_start_y * scale
+            dest_bot = input_end_y * scale
+            dest_left = input_start_x * scale
+            dest_right = input_end_x * scale
+
+            output[:, :, dest_top:dest_bot, dest_left:dest_right] = output_tile[:, :, out_pad_top:out_pad_bot, out_pad_left:out_pad_right]
+
+    return output
+
 class RealESRGANEngine:
     def __init__(self, model_name: str = "RealESRGAN_x4plus"):
         self.model_name = model_name
+        self.model = None
         self.upscaler = None
         self.device = None
         self.is_loaded = False
         self.init_error = ""
 
     def load_model(self) -> bool:
-        if self.is_loaded and self.upscaler is not None:
+        if self.is_loaded and (self.model is not None or self.upscaler is not None):
             return True
 
         try:
             import torch
-            from realesrgan import RealESRGANer
-            from basicsr.archs.rrdbnet_arch import RRDBNet
-
             self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-            logger.info(f"Initializing Real-ESRGAN in-memory model on device: {self.device}")
+            logger.info(f"Initializing Real-ESRGAN pure PyTorch model on device: {self.device}")
 
             # Define architecture according to model variant
             if self.model_name == 'RealESRGAN_x4plus_anime_6B':
-                model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=6, num_grow_ch=32, scale=4)
+                net = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=6, num_grow_ch=32, scale=4)
             else:
-                model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
+                net = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
 
             # Locate weight file
             filename = f"{self.model_name}.pth"
@@ -63,7 +114,8 @@ class RealESRGANEngine:
                 os.path.join("experiments/pretrained_models", filename),
                 os.path.join("weights", filename),
                 os.path.join("Real-ESRGAN/experiments/pretrained_models", filename),
-                os.path.join("/content/Upscale-AI/experiments/pretrained_models", filename)
+                os.path.join("/content/Upscale-AI/experiments/pretrained_models", filename),
+                os.path.join("/content/Upscale-AI/weights", filename)
             ]
             for c in candidates:
                 if os.path.exists(c):
@@ -75,20 +127,25 @@ class RealESRGANEngine:
                 logger.error(self.init_error)
                 return False
 
-            use_half = torch.cuda.is_available()
-            self.upscaler = RealESRGANer(
-                scale=4,
-                model_path=model_path,
-                dni_weight=None,
-                model=model,
-                tile=TILE_SIZE,
-                tile_pad=TILE_PAD,
-                pre_pad=PRE_PAD,
-                half=use_half,
-                gpu_id=0 if torch.cuda.is_available() else None
-            )
+            # Load weights dictionary directly with torch
+            loadnet = torch.load(model_path, map_location=torch.device('cpu'))
+            if 'params_ema' in loadnet:
+                state_dict = loadnet['params_ema']
+            elif 'params' in loadnet:
+                state_dict = loadnet['params']
+            else:
+                state_dict = loadnet
+
+            net.load_state_dict(state_dict, strict=True)
+            net.eval()
+            net = net.to(self.device)
+
+            if torch.cuda.is_available():
+                net = net.half()
+
+            self.model = net
             self.is_loaded = True
-            logger.info(f"Real-ESRGAN model '{self.model_name}' successfully loaded into VRAM/RAM!")
+            logger.info(f"Real-ESRGAN pure PyTorch model '{self.model_name}' successfully loaded into VRAM/RAM (FP16: {torch.cuda.is_available()})!")
             return True
         except Exception as e:
             self.init_error = f"In-memory Real-ESRGAN init error: {str(e)}"
@@ -97,24 +154,60 @@ class RealESRGANEngine:
 
     def enhance(self, input_path: str, output_path: str, scale: float, ext: str, quality: int) -> tuple[bool, str, str, str]:
         """
-        Enhances image using persistent in-memory model.
-        Returns: (success: bool, error_stage: str, error_reason: str, error_details: str)
+        Enhances image using persistent in-memory pure PyTorch model.
         """
         if not self.is_loaded:
             if not self.load_model():
-                return False, "Model Loading", "Weight File or Module Missing", self.init_error
+                return False, "Model Loading", "Weight File Missing or Model Failure", self.init_error
 
         try:
-            import cv2
             import torch
             img = cv2.imread(input_path, cv2.IMREAD_UNCHANGED)
             if img is None:
                 return False, "Image Reading", "Corrupted / Unreadable File", f"cv2.imread failed to decode {input_path}"
 
-            output, _ = self.upscaler.enhance(img, outscale=scale)
+            # If RGBA, separate alpha
+            has_alpha = len(img.shape) == 3 and img.shape[2] == 4
+            if has_alpha:
+                alpha = img[:, :, 3]
+                img_rgb = img[:, :, :3]
+            else:
+                alpha = None
+                img_rgb = img if len(img.shape) == 3 else cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+
+            # Convert BGR uint8 -> RGB float32 tensor
+            img_float = img_rgb.astype(np.float32) / 255.0
+            img_t = torch.from_numpy(np.transpose(img_float[:, :, [2, 1, 0]], (2, 0, 1))).float()
+            img_t = img_t.unsqueeze(0).to(self.device)
+
+            if torch.cuda.is_available():
+                img_t = img_t.half()
+
+            # Execute tile-based super-resolution
+            output_t = tile_process(self.model, img_t, tile_size=TILE_SIZE, tile_pad=TILE_PAD, scale=4)
+
+            # Convert back to uint8 BGR numpy array
+            output_np = output_t.data.squeeze().float().cpu().clamp_(0, 1).numpy()
+            output = np.transpose(output_np[[2, 1, 0], :, :], (1, 2, 0))
+            output = (output * 255.0).round().astype(np.uint8)
+
+            # Resize if active scale is different from native 4x
+            if scale != 4.0 and scale > 0:
+                h, w = img_rgb.shape[:2]
+                target_w = int(w * scale)
+                target_h = int(h * scale)
+                output = cv2.resize(output, (target_w, target_h), interpolation=cv2.INTER_LANCZOS4)
+
+            # Restore alpha channel if needed
+            if has_alpha and ext.lower() == "png":
+                h_out, w_out = output.shape[:2]
+                alpha_resized = cv2.resize(alpha, (w_out, h_out), interpolation=cv2.INTER_LANCZOS4)
+                output = cv2.merge([output[:, :, 0], output[:, :, 1], output[:, :, 2], alpha_resized])
 
             # Format export
             if ext.lower() in ["jpg", "jpeg"]:
+                if len(output.shape) == 3 and output.shape[2] == 4:
+                    output = cv2.cvtColor(output, cv2.COLOR_BGRA2BGR)
                 cv2.imwrite(output_path, output, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
             else:
                 cv2.imwrite(output_path, output)
@@ -127,6 +220,7 @@ class RealESRGANEngine:
             err_details = f"In-memory enhancement exception: {str(e)}"
             logger.error(err_details)
             return False, "Real-ESRGAN", "Inference Execution Exception", err_details
+
 
 def get_engine(model_name: str = "RealESRGAN_x4plus") -> RealESRGANEngine:
     global _engine_cache

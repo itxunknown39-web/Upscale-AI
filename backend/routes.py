@@ -124,6 +124,59 @@ async def upload_files(files: List[UploadFile] = File(...)):
 
     return {"files": uploaded_files_list}
 
+@router.post("/api/scan-drive-input")
+async def scan_drive_input():
+    """
+    Scans the Google Drive input folder (AdobeStockUpscaler/input) directly
+    and adds all found images to the batch queue instantly without needing slow browser uploads.
+    """
+    paths = resolve_paths()
+    input_dir = paths.get("input")
+    if not input_dir or not os.path.exists(input_dir):
+        return {"files": [], "message": f"Input folder not found: {input_dir}", "folder": input_dir or ""}
+
+    imported_files = []
+    os.makedirs(TEMP_INPUT_DIR, exist_ok=True)
+    allowed_exts = [".jpg", ".jpeg", ".png"]
+
+    try:
+        filenames = os.listdir(input_dir)
+    except Exception as e:
+        return {"files": [], "message": f"Cannot read input folder: {str(e)}", "folder": input_dir}
+
+    for fname in filenames:
+        _, ext = os.path.splitext(fname.lower())
+        if ext in allowed_exts:
+            src_path = os.path.join(input_dir, fname)
+            if not os.path.isfile(src_path):
+                continue
+
+            file_id = str(uuid.uuid4())[:8]
+            sanitized_name = re.sub(r'[^a-zA-Z0-9_.-]', '_', fname)
+            temp_path = os.path.join(TEMP_INPUT_DIR, f"{file_id}_{sanitized_name}")
+
+            try:
+                shutil.copy2(src_path, temp_path)
+                file_size = os.path.getsize(temp_path)
+                with Image.open(temp_path) as img:
+                    width, height = img.size
+
+                file_item = FileItem(file_id, sanitized_name, file_size, width, height, temp_path)
+                files_state[file_id] = file_item
+                imported_files.append({
+                    "id": file_item.id,
+                    "name": file_item.name,
+                    "width": file_item.width,
+                    "height": file_item.height,
+                    "megapixels": file_item.megapixels,
+                    "size": file_item.size
+                })
+            except Exception as e:
+                logger.error(f"Error importing {fname}: {str(e)}")
+
+    return {"files": imported_files, "folder": input_dir, "count": len(imported_files)}
+
+
 @router.post("/api/process-file")
 async def process_single_file_endpoint(req: SingleProcessRequest):
     """

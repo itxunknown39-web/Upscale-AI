@@ -33,11 +33,13 @@ def resolve_paths():
         base_path = f"./{DRIVE_FOLDER_NAME}"
 
     return {
+        "input": os.path.join(base_path, "input"),
         "output": os.path.join(base_path, "output"),
         "failed": os.path.join(base_path, "failed"),
         "logs": os.path.join(base_path, "logs"),
         "archives": os.path.join(base_path, "archives")
     }
+
 
 # Working directories
 TEMP_INPUT_DIR = f"./{DRIVE_FOLDER_NAME}/temp_input"
