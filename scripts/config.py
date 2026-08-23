@@ -16,35 +16,35 @@ TILE_PAD = 10
 PRE_PAD = 10
 
 # Directory paths configuration
-DRIVE_MOUNT_PARENT = "/content/drive/MyDrive"
-DRIVE_PROJECT_PATH = os.path.join(DRIVE_MOUNT_PARENT, "AdobeStockUpscaler")
+DRIVE_MOUNT_PARENT = os.getenv("DRIVE_MOUNT_PARENT", "/content/drive/MyDrive")
+DRIVE_FOLDER_NAME = os.getenv("DRIVE_FOLDER_NAME", "AdobeStockUpscaler")
+CUSTOM_DRIVE_PATH = os.getenv("DRIVE_PATH", os.getenv("GOOGLE_DRIVE_PATH", ""))
 
 def resolve_paths():
     """
-    Dynamically maps folders to Google Drive if mounted,
+    Dynamically maps folders to Google Drive if mounted or configured,
     falling back to local storage if Drive is not mounted.
     """
-    if os.path.exists(DRIVE_MOUNT_PARENT):
-        return {
-            "output": os.path.join(DRIVE_PROJECT_PATH, "output"),
-            "failed": os.path.join(DRIVE_PROJECT_PATH, "failed"),
-            "logs": os.path.join(DRIVE_PROJECT_PATH, "logs"),
-            "archives": os.path.join(DRIVE_PROJECT_PATH, "archives")
-        }
+    if CUSTOM_DRIVE_PATH and os.path.exists(CUSTOM_DRIVE_PATH):
+        base_path = CUSTOM_DRIVE_PATH
+    elif os.path.exists(DRIVE_MOUNT_PARENT):
+        base_path = os.path.join(DRIVE_MOUNT_PARENT, DRIVE_FOLDER_NAME)
     else:
-        local_base = "./AdobeStockUpscaler"
-        return {
-            "output": os.path.join(local_base, "output"),
-            "failed": os.path.join(local_base, "failed"),
-            "logs": os.path.join(local_base, "logs"),
-            "archives": os.path.join(local_base, "archives")
-        }
+        base_path = f"./{DRIVE_FOLDER_NAME}"
+
+    return {
+        "output": os.path.join(base_path, "output"),
+        "failed": os.path.join(base_path, "failed"),
+        "logs": os.path.join(base_path, "logs"),
+        "archives": os.path.join(base_path, "archives")
+    }
 
 # Working directories
-TEMP_INPUT_DIR = "./AdobeStockUpscaler/temp_input"
-TEMP_OUTPUT_DIR = "./AdobeStockUpscaler/temp_output"
+TEMP_INPUT_DIR = f"./{DRIVE_FOLDER_NAME}/temp_input"
+TEMP_OUTPUT_DIR = f"./{DRIVE_FOLDER_NAME}/temp_output"
 
 # Ensure runtime directories are created
 paths = resolve_paths()
 for p in list(paths.values()) + [TEMP_INPUT_DIR, TEMP_OUTPUT_DIR]:
     os.makedirs(p, exist_ok=True)
+
