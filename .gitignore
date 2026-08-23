@@ -23,7 +23,7 @@ cloudflared
 
 # Cloned dependencies
 Real-ESRGAN/
-inference_realesrgan.py
+
 
 # Environment variables
 .env
