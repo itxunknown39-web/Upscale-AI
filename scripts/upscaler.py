@@ -4,7 +4,15 @@ import time
 import logging
 import subprocess
 import shutil
+import math
+import cv2
+import numpy as np
 from PIL import Image
+
+try:
+    import torch
+except ImportError:
+    torch = None
 
 # Ensure torchvision functional_tensor backward compatibility for basicsr
 try:
@@ -12,10 +20,6 @@ try:
     sys.modules['torchvision.transforms.functional_tensor'] = F
 except Exception:
     pass
-
-import math
-import cv2
-import numpy as np
 
 # Ensure basicsr shim and RRDBNet are available
 from scripts.rrdbnet import RRDBNet, register_basicsr_shim
@@ -31,6 +35,7 @@ logger = logging.getLogger("AdobeStockUpscaler.Upscaler")
 # Cache global in-memory engine instances
 _engine_cache = {}
 active_subprocess = None
+
 
 def get_active_subprocess():
     global active_subprocess
@@ -98,8 +103,12 @@ class RealESRGANEngine:
         if self.is_loaded and (self.model is not None or self.upscaler is not None):
             return True
 
+        if torch is None:
+            self.init_error = "PyTorch is not installed or available in this environment."
+            logger.error(self.init_error)
+            return False
+
         try:
-            import torch
             self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
             logger.info(f"Initializing Real-ESRGAN pure PyTorch model on device: {self.device}")
 
@@ -149,8 +158,10 @@ class RealESRGANEngine:
             if not self.load_model():
                 return False, "Model Loading", "Weight File Missing or Model Failure", self.init_error
 
+        if torch is None:
+            return False, "PyTorch Missing", "Environment Error", "PyTorch is not available."
+
         try:
-            import torch
             img = cv2.imread(input_path, cv2.IMREAD_UNCHANGED)
             if img is None:
                 return False, "Image Reading", "Corrupted / Unreadable File", f"cv2.imread failed to decode {input_path}"
@@ -171,6 +182,7 @@ class RealESRGANEngine:
 
             if torch.cuda.is_available():
                 img_t = img_t.half()
+
 
             # Execute tile-based super-resolution
             output_t = tile_process(self.model, img_t, tile_size=TILE_SIZE, tile_pad=TILE_PAD, scale=4)
@@ -287,12 +299,9 @@ def run_upscale(
                 cmd.extend(["--model_path", os.path.abspath(w_cand)])
                 break
 
-        try:
-            import torch
-            if torch.cuda.is_available():
-                cmd.append("--half")
-        except Exception:
-            pass
+        if torch is not None and torch.cuda.is_available():
+            cmd.append("--half")
+
 
         logger.info(f"Subprocess CLI command: {' '.join(cmd)}")
 
@@ -310,38 +319,39 @@ def run_upscale(
 
             if process.returncode != 0:
                 err_msg = stderr.strip() or stdout.strip() or f"Subprocess exited with code {process.returncode}"
-                return False, "Real-ESRGAN CLI", f"CLI Error Code {process.returncode}", err_msg
+                logger.warning(f"Real-ESRGAN CLI error (code {process.returncode}): {err_msg}. Triggering PIL Lanczos fallback...")
+            else:
+                base_name = os.path.basename(input_path)
+                name_no_ext, _ = os.path.splitext(base_name)
+                candidate_filenames = [
+                    f"{name_no_ext}_out.{ext}",
+                    f"{name_no_ext}.{ext}",
+                    f"{name_no_ext}_out.jpg",
+                    f"{name_no_ext}_out.png"
+                ]
 
-            base_name = os.path.basename(input_path)
-            name_no_ext, _ = os.path.splitext(base_name)
-            candidate_filenames = [
-                f"{name_no_ext}_out.{ext}",
-                f"{name_no_ext}.{ext}",
-                f"{name_no_ext}_out.jpg",
-                f"{name_no_ext}_out.png"
-            ]
-
-            found_file = None
-            for c_name in candidate_filenames:
-                c_path = os.path.join(TEMP_OUTPUT_DIR, c_name)
-                if os.path.exists(c_path):
-                    found_file = c_path
-                    break
-
-            if not found_file and os.path.exists(TEMP_OUTPUT_DIR):
-                for f in os.listdir(TEMP_OUTPUT_DIR):
-                    if name_no_ext in f:
-                        found_file = os.path.join(TEMP_OUTPUT_DIR, f)
+                found_file = None
+                for c_name in candidate_filenames:
+                    c_path = os.path.join(TEMP_OUTPUT_DIR, c_name)
+                    if os.path.exists(c_path):
+                        found_file = c_path
                         break
 
-            if found_file and os.path.exists(found_file):
-                shutil.move(found_file, output_path)
-                return True, "", "", ""
-            else:
-                return False, "Output Move", "Output File Missing", f"Expected output image not found in {TEMP_OUTPUT_DIR}"
+                if not found_file and os.path.exists(TEMP_OUTPUT_DIR):
+                    for f in os.listdir(TEMP_OUTPUT_DIR):
+                        if name_no_ext in f:
+                            found_file = os.path.join(TEMP_OUTPUT_DIR, f)
+                            break
+
+                if found_file and os.path.exists(found_file):
+                    shutil.move(found_file, output_path)
+                    return True, "", "", ""
+                else:
+                    logger.warning(f"Expected CLI output image not found in {TEMP_OUTPUT_DIR}. Falling back to PIL Lanczos...")
         except Exception as e:
             active_subprocess = None
-            return False, "Real-ESRGAN CLI", "Subprocess Execution Exception", str(e)
+            logger.warning(f"Subprocess execution exception ({str(e)}). Falling back to PIL Lanczos...")
+
 
     # 3. Tertiary: Local Development Fallback (Pillow Lanczos)
     logger.warning("Real-ESRGAN engine & CLI absent. Running PIL Lanczos fallback.")
