@@ -31,7 +31,7 @@ router = APIRouter()
 
 class ProcessRequest(BaseModel):
     file_ids: List[str]
-    upscale_factor: int = 4
+    upscale_factor: float = 2.0
     output_format: str = "jpg"
     jpeg_quality: int = 95
     model: str = "RealESRGAN_x4plus"
@@ -40,12 +40,13 @@ class ProcessRequest(BaseModel):
 
 class SingleProcessRequest(BaseModel):
     file_id: str
-    upscale_factor: int = 4
+    upscale_factor: float = 2.0
     output_format: str = "jpg"
     jpeg_quality: int = 95
     model: str = "RealESRGAN_x4plus"
     target_width: Optional[int] = None
     target_height: Optional[int] = None
+
 
 @router.get("/api/health")
 async def get_health():
@@ -311,3 +312,82 @@ async def cancel_batch():
             logger.error(f"Process termination exception: {str(e)}")
 
     return {"status": "cancel_initiated"}
+
+@router.post("/api/save-to-drive")
+async def save_to_drive():
+    """
+    Ensures all completed images are stored in the persistent Google Drive folder
+    and returns per-file save status and direct Drive folder info.
+    """
+    paths = resolve_paths()
+    output_dir = paths["output"]
+    os.makedirs(output_dir, exist_ok=True)
+
+    completed_files = [f for f in files_state.values() if f.status == "completed"]
+    if not completed_files:
+        return {
+            "success": False,
+            "message": "No completed images available to save to Google Drive.",
+            "folder": output_dir,
+            "saved_count": 0,
+            "files": []
+        }
+
+    saved_list = []
+    for f in completed_files:
+        file_path = os.path.join(output_dir, f.name)
+        exists = os.path.exists(file_path)
+        saved_list.append({
+            "id": f.id,
+            "name": f.name,
+            "saved": exists,
+            "path": file_path,
+            "resolution": f"{f.output_width}x{f.output_height}",
+            "megapixels": f.output_megapixels
+        })
+
+    is_google_drive = "drive" in output_dir.lower() or os.path.exists("/content/drive/MyDrive")
+    return {
+        "success": True,
+        "is_drive": is_google_drive,
+        "folder": output_dir,
+        "saved_count": len([item for item in saved_list if item["saved"]]),
+        "total_count": len(completed_files),
+        "files": saved_list,
+        "message": f"Successfully verified {len(saved_list)} files in Drive folder: {output_dir}"
+    }
+
+@router.post("/api/second-pass-file")
+async def second_pass_file_endpoint(req: SingleProcessRequest):
+    """
+    Applies an optional second upscale pass to an already completed image.
+    Uses the previous output as input for the second stage.
+    """
+    if req.file_id not in files_state:
+        raise HTTPException(status_code=404, detail=f"File ID '{req.file_id}' not found.")
+
+    file_item = files_state[req.file_id]
+    paths = resolve_paths()
+    prev_output_path = os.path.join(paths["output"], file_item.name)
+
+    if not os.path.exists(prev_output_path):
+        raise HTTPException(status_code=400, detail="Previous output image not found on disk for second pass.")
+
+    pass2_temp_input = os.path.join(TEMP_INPUT_DIR, f"pass2_{file_item.id}_{file_item.name}")
+    shutil.copy2(prev_output_path, pass2_temp_input)
+    file_item.temp_path = pass2_temp_input
+    file_item.width = file_item.output_width
+    file_item.height = file_item.output_height
+
+    result = await asyncio.to_thread(
+        process_single_file,
+        file_id=req.file_id,
+        scale_factor=req.upscale_factor,
+        output_format=req.output_format,
+        jpeg_quality=req.jpeg_quality,
+        model=req.model,
+        target_width=req.target_width,
+        target_height=req.target_height
+    )
+    return result
+

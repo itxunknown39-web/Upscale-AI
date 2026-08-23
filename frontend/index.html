@@ -77,21 +77,29 @@
         </div>
 
         <!-- Upscale Factor -->
+        <!-- Upscale Factor -->
         <div class="form-group">
-          <label>Upscale Output Mode</label>
-          <div class="radio-grid three-cols">
+          <label>Upscale Scale Mode</label>
+          <div class="radio-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;">
             <div class="radio-card">
-              <input type="radio" name="scale_mode" value="2">
+              <input type="radio" name="scale_mode" value="2" checked>
               <div class="radio-card-content">
                 <span>2×</span>
-                <span class="radio-card-subtitle">Factor scale</span>
+                <span class="radio-card-subtitle" style="color: #60a5fa;">Stock Ready</span>
               </div>
             </div>
             <div class="radio-card">
-              <input type="radio" name="scale_mode" value="4" checked>
+              <input type="radio" name="scale_mode" value="3">
+              <div class="radio-card-content">
+                <span>3×</span>
+                <span class="radio-card-subtitle">High Quality</span>
+              </div>
+            </div>
+            <div class="radio-card">
+              <input type="radio" name="scale_mode" value="4">
               <div class="radio-card-content">
                 <span>4×</span>
-                <span class="radio-card-subtitle">Default scale</span>
+                <span class="radio-card-subtitle">Max Detail</span>
               </div>
             </div>
             <div class="radio-card">
@@ -106,12 +114,12 @@
           <!-- Custom Resolution Inputs -->
           <div id="target-res-inputs" class="number-input-group" style="display: none;">
             <div>
-              <label style="font-size:0.75rem; margin-bottom:0.25rem;">Width (px)</label>
-              <input type="number" id="target-width" class="input-control" value="3840" min="500" max="10000">
+              <label style="font-size:0.75rem; margin-bottom:0.25rem;">Width (px - max 8192)</label>
+              <input type="number" id="target-width" class="input-control" value="3840" min="500" max="8192">
             </div>
             <div>
-              <label style="font-size:0.75rem; margin-bottom:0.25rem;">Height (px)</label>
-              <input type="number" id="target-height" class="input-control" value="2160" min="500" max="10000">
+              <label style="font-size:0.75rem; margin-bottom:0.25rem;">Height (px - max 8192)</label>
+              <input type="number" id="target-height" class="input-control" value="2160" min="500" max="8192">
             </div>
           </div>
         </div>
@@ -124,18 +132,43 @@
               <input type="radio" name="output_format" value="jpg" checked>
               <div class="radio-card-content">
                 <span>JPEG (.jpg)</span>
-                <span class="radio-card-subtitle">Adobe Standard</span>
+                <span class="radio-card-subtitle">Adobe Standard (95%)</span>
               </div>
             </div>
             <div class="radio-card">
               <input type="radio" name="output_format" value="png">
               <div class="radio-card-content">
                 <span>PNG (.png)</span>
-                <span class="radio-card-subtitle">Lossless/Alpha</span>
+                <span class="radio-card-subtitle">Lossless / Alpha</span>
               </div>
             </div>
           </div>
         </div>
+
+        <!-- Action Panel -->
+        <div class="glass-panel actions-panel" style="margin-top: 15px; display: flex; flex-direction: column; gap: 8px;">
+          <button class="btn btn-primary" id="btn-start" disabled>
+            <svg viewBox="0 0 24 24"><path d="M8,5.14V19.14L19,12.14L8,5.14Z"/></svg>
+            Start Batch Upscale
+          </button>
+          <button class="btn" id="btn-save-drive" style="background: rgba(37, 99, 235, 0.2); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.4);" disabled>
+            <svg viewBox="0 0 24 24"><path d="M19,20H4C2.89,20 2,19.1 2,18V6C2,4.89 2.89,4 4,4H10L12,6H19A2,2 0 0,1 21,8H21L4,8V18L6.14,10H23.21L20.93,18.5C20.7,19.37 19.92,20 19,20Z"/></svg>
+            📁 Save to Google Drive
+          </button>
+          <button class="btn btn-secondary" id="btn-download-all" disabled>
+            <svg viewBox="0 0 24 24"><path d="M19,12h-3v-4h-8v4h-3l7,7L19,12z M5,20h14v-2H5V20z"/></svg>
+            📦 Manual Download ZIP
+          </button>
+          <button class="btn" id="btn-retry-failed" style="display: none; background: rgba(234, 179, 8, 0.15); color: #eab308; border: 1px solid rgba(234, 179, 8, 0.3);">
+            <svg viewBox="0 0 24 24"><path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.86,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"/></svg>
+            Retry Failed Items
+          </button>
+          <button class="btn btn-danger" id="btn-cancel" disabled>
+            <svg viewBox="0 0 24 24"><path d="M12,2A10,10,0,1,0,22,12,10,10,0,0,0,12,2Zm5,11H7V11H17Z"/></svg>
+            Cancel Batch
+          </button>
+        </div>
+
 
         <!-- Upload Concurrency -->
         <div class="form-group">
@@ -157,25 +190,7 @@
         </div>
       </div>
 
-      <!-- Action Panel -->
-      <div class="glass-panel actions-panel">
-        <button class="btn btn-primary" id="btn-start" disabled>
-          <svg viewBox="0 0 24 24"><path d="M8,5.14V19.14L19,12.14L8,5.14Z"/></svg>
-          Start Batch Upscale
-        </button>
-        <button class="btn" id="btn-retry-failed" style="display: none; background: rgba(234, 179, 8, 0.15); color: #eab308; border: 1px solid rgba(234, 179, 8, 0.3);">
-          <svg viewBox="0 0 24 24"><path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.86,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"/></svg>
-          Retry Failed Items
-        </button>
-        <button class="btn btn-danger" id="btn-cancel" disabled>
-          <svg viewBox="0 0 24 24"><path d="M12,2A10,10,0,1,0,22,12,10,10,0,0,0,12,2Zm5,11H7V11H17Z"/></svg>
-          Cancel Current Batch
-        </button>
-        <button class="btn btn-secondary" id="btn-download-all" disabled>
-          <svg viewBox="0 0 24 24"><path d="M19,12h-3v-4h-8v4h-3l7,7L19,12z M5,20h14v-2H5V20z"/></svg>
-          Download ZIP Package
-        </button>
-      </div>
+
 
     </div>
 

@@ -18,6 +18,7 @@ except Exception:
 from scripts.rrdbnet import RRDBNet, register_basicsr_shim
 register_basicsr_shim()
 
+from scripts.model_manager import ensure_model_weights, find_model_weights
 from scripts.upscaler import tile_process
 
 def main():
@@ -25,7 +26,7 @@ def main():
     parser.add_argument('-i', '--input', type=str, default='inputs', help='Input image or folder')
     parser.add_argument('-n', '--model_name', type=str, default='RealESRGAN_x4plus', help='Model name')
     parser.add_argument('-o', '--output', type=str, default='results', help='Output folder')
-    parser.add_argument('-s', '--outscale', type=float, default=4.0, help='The final upsampling scale of the image')
+    parser.add_argument('-s', '--outscale', type=float, default=2.0, help='Upsampling scale (2.0 = Stock Ready default, 3.0 = High, 4.0 = Maximum)')
     parser.add_argument('--suffix', type=str, default='out', help='Suffix of the restored image')
     parser.add_argument('-t', '--tile', type=int, default=400, help='Tile size, 0 for no tile during testing')
     parser.add_argument('--tile_pad', type=int, default=10, help='Tile padding')
@@ -46,25 +47,16 @@ def main():
     else:
         model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
 
-    # Locate model weights
+    # Locate model weights cleanly
     model_path = args.model_path
     if not model_path or not os.path.exists(model_path):
-        filename = f"{args.model_name}.pth"
-        candidates = [
-            os.path.join("experiments/pretrained_models", filename),
-            os.path.join("weights", filename),
-            os.path.join("Real-ESRGAN/experiments/pretrained_models", filename),
-            os.path.join("/content/Upscale-AI/experiments/pretrained_models", filename),
-            os.path.join("/content/Upscale-AI/weights", filename)
-        ]
-        for c in candidates:
-            if os.path.exists(c):
-                model_path = os.path.abspath(c)
-                break
+        success, found_path, err_msg = ensure_model_weights(args.model_name, auto_download=True)
+        if success and found_path:
+            model_path = found_path
+        else:
+            print(f"[Error] Model weight file for '{args.model_name}' not found: {err_msg}")
+            sys.exit(1)
 
-    if not model_path or not os.path.exists(model_path):
-        print(f"[Error] Model weight file for '{args.model_name}' not found.")
-        sys.exit(1)
 
     print(f"Loading weights from: {model_path} (Device: {device}, FP16: {use_half})")
     loadnet = torch.load(model_path, map_location=torch.device('cpu'))

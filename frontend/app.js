@@ -395,12 +395,15 @@ function updateQueueTable() {
     let actionsHtml = '';
     if (file.status === 'completed') {
       actionsHtml = `
-        <div class="row-actions-container">
+        <div class="row-actions-container" style="display: flex; gap: 4px; justify-content: center;">
           <button class="btn-icon btn-preview-trigger" title="Interactive Comparison" onclick="openPreview('${file.id}')">
             <svg viewBox="0 0 24 24"><path d="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17Z"/></svg>
           </button>
-          <button class="btn-icon" title="Download Image" onclick="downloadProcessedImage('${file.id}')">
+          <button class="btn-icon" title="Download Single Image" onclick="downloadProcessedImage('${file.id}')">
             <svg viewBox="0 0 24 24"><path d="M5,20H19V18H5V20M19,9H15V3H9V9H5L12,16L19,9Z"/></svg>
+          </button>
+          <button class="btn-icon" title="Optional 2nd Pass (2x)" onclick="runSecondPass('${file.id}')" style="color: #60a5fa;">
+            <svg viewBox="0 0 24 24"><path d="M19,8L15,12H18A6,6 0 0,1 12,18C11,18 10.03,17.75 9.2,17.3L7.74,18.76C8.97,19.54 10.43,20 12,20A8,8 0 0,0 20,12H23L19,8M6,12A6,6 0 0,1 12,6C13,6 13.97,6.25 14.8,6.7L16.26,5.24C15.03,4.46 13.57,4 12,4A8,8 0 0,0 4,12H1L5,16L9,12H6Z"/></svg>
           </button>
         </div>
       `;
@@ -411,6 +414,7 @@ function updateQueueTable() {
         </button>
       `;
     }
+
 
     tr.innerHTML = `
       <td>
@@ -878,7 +882,7 @@ btnStart.addEventListener('click', async () => {
   updateQueueTable();
 
   state.uploadConcurrency = parseInt(uploadConcurrencySelect.value) || 4;
-  const scaleMode = document.querySelector('input[name="scale_mode"]:checked')?.value || '4';
+  const scaleMode = document.querySelector('input[name="scale_mode"]:checked')?.value || '2';
   const upscaleModel = document.querySelector('input[name="upscale_model"]:checked')?.value || 'RealESRGAN_x4plus';
   const outputFormat = document.querySelector('input[name="output_format"]:checked')?.value || 'jpg';
   const jpegQuality = parseInt(jpegQualitySlider.value) || 95;
@@ -886,7 +890,7 @@ btnStart.addEventListener('click', async () => {
   const targetHeight = parseInt(targetHeightInput.value) || 2160;
 
   const processingParams = {
-    upscale_factor: scaleMode === 'target' ? 4 : (parseInt(scaleMode) || 4),
+    upscale_factor: scaleMode === 'target' ? 2 : (parseFloat(scaleMode) || 2.0),
     output_format: outputFormat,
     jpeg_quality: jpegQuality,
     model: upscaleModel,
@@ -914,7 +918,7 @@ btnRetryFailed.addEventListener('click', async () => {
   updateQueueTable();
 
   state.uploadConcurrency = parseInt(uploadConcurrencySelect.value) || 4;
-  const scaleMode = document.querySelector('input[name="scale_mode"]:checked')?.value || '4';
+  const scaleMode = document.querySelector('input[name="scale_mode"]:checked')?.value || '2';
   const upscaleModel = document.querySelector('input[name="upscale_model"]:checked')?.value || 'RealESRGAN_x4plus';
   const outputFormat = document.querySelector('input[name="output_format"]:checked')?.value || 'jpg';
   const jpegQuality = parseInt(jpegQualitySlider.value) || 95;
@@ -922,7 +926,7 @@ btnRetryFailed.addEventListener('click', async () => {
   const targetHeight = parseInt(targetHeightInput.value) || 2160;
 
   const processingParams = {
-    upscale_factor: scaleMode === 'target' ? 4 : (parseInt(scaleMode) || 4),
+    upscale_factor: scaleMode === 'target' ? 2 : (parseFloat(scaleMode) || 2.0),
     output_format: outputFormat,
     jpeg_quality: jpegQuality,
     model: upscaleModel,
@@ -963,15 +967,116 @@ btnCancel.addEventListener('click', async () => {
   updateOverallProgress();
 });
 
+// Save to Google Drive Action
+const btnSaveDrive = document.getElementById('btn-save-drive');
+if (btnSaveDrive) {
+  btnSaveDrive.addEventListener('click', async () => {
+    if (state.processing) return;
+    const completed = state.files.filter(f => f.status === 'completed');
+    if (completed.length === 0) {
+      alert("No completed images available to save to Google Drive.");
+      return;
+    }
+
+    btnSaveDrive.disabled = true;
+    btnSaveDrive.textContent = "⏳ Saving to Drive...";
+
+    try {
+      const res = await fetch('/api/save-to-drive', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        alert(`✓ Successfully saved ${data.saved_count} of ${data.total_count} images to Google Drive!\n\nFolder: ${data.folder}`);
+      } else {
+        alert(data.message || "Failed saving images to Google Drive.");
+      }
+    } catch (err) {
+      alert(`Error saving to Google Drive: ${err.message}`);
+    } finally {
+      btnSaveDrive.disabled = false;
+      btnSaveDrive.innerHTML = `
+        <svg viewBox="0 0 24 24" style="width:18px; height:18px; fill:currentColor; vertical-align:middle; margin-right:4px;"><path d="M19,20H4C2.89,20 2,19.1 2,18V6C2,4.89 2.89,4 4,4H10L12,6H19A2,2 0 0,1 21,8H21L4,8V18L6.14,10H23.21L20.93,18.5C20.7,19.37 19.92,20 19,20Z"/></svg>
+        📁 Save to Google Drive
+      `;
+    }
+  });
+}
+
 // Download Archive & Single Images
 btnDownloadAll.addEventListener('click', () => {
+  const completed = state.files.filter(f => f.status === 'completed');
+  if (completed.length === 0) {
+    alert("No completed outputs available to package.");
+    return;
+  }
   window.location.href = '/api/download-all';
 });
 
 window.downloadProcessedImage = function(fileId) {
   const file = state.files.find(f => f.id === fileId);
   if (file) {
-    window.location.href = `/api/download/${encodeURIComponent(file.name)}`;
+    const link = document.createElement('a');
+    link.href = `/api/download/${encodeURIComponent(file.name)}`;
+    link.download = file.name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+};
+
+// Optional Second Pass Upscale
+window.runSecondPass = async function(fileId) {
+  if (state.processing) return;
+  const file = state.files.find(f => f.id === fileId);
+  if (!file || file.status !== 'completed') return;
+
+  if (file.output && (file.output.width >= 8000 || file.output.height >= 8000)) {
+    if (!confirm(`Warning: Image is already ${file.output.width}×${file.output.height} (${file.output.megapixels} MP). Running a 2nd pass may exceed stock size limits. Continue?`)) {
+      return;
+    }
+  }
+
+  file.status = 'processing';
+  updateQueueTable();
+  updateOverallProgress();
+
+  const outputFormat = document.querySelector('input[name="output_format"]:checked')?.value || 'jpg';
+  const jpegQuality = parseInt(jpegQualitySlider.value) || 95;
+  const upscaleModel = document.querySelector('input[name="upscale_model"]:checked')?.value || 'RealESRGAN_x4plus';
+
+  try {
+    const res = await fetch('/api/second-pass-file', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        file_id: file.serverId || file.id,
+        upscale_factor: 2.0,
+        output_format: outputFormat,
+        jpeg_quality: jpegQuality,
+        model: upscaleModel
+      })
+    });
+    const result = await res.json();
+    if (result.status === 'completed') {
+      file.status = 'completed';
+      file.name = result.name || file.name;
+      file.output = result.output;
+      file.qc = result.qc;
+      file.processing_seconds = (file.processing_seconds || 0) + (result.processing_seconds || 0);
+      alert(`✓ Second pass upscale complete for '${file.name}' (${file.output.width}×${file.output.height})!`);
+    } else {
+      file.status = 'failed';
+      file.error_stage = result.error_stage || 'Pass 2 Error';
+      file.error_reason = result.error_reason || 'Second pass failed';
+      file.error_details = result.error_details || '';
+      alert(`Pass 2 Failed: ${file.error_reason}`);
+    }
+  } catch (err) {
+    file.status = 'failed';
+    file.error_reason = err.message;
+    alert(`Pass 2 Request Error: ${err.message}`);
+  } finally {
+    updateQueueTable();
+    updateOverallProgress();
   }
 };
 
@@ -982,6 +1087,10 @@ function toggleUIState(isDisabled) {
   btnClearQueue.disabled = isDisabled;
   fileUploader.disabled = isDisabled;
   btnRetryFailed.disabled = isDisabled;
+
+  const hasCompleted = state.files.some(f => f.status === 'completed');
+  if (btnSaveDrive) btnSaveDrive.disabled = isDisabled || !hasCompleted;
+  btnDownloadAll.disabled = isDisabled || !hasCompleted;
 
   Array.from(scaleModeRadios).forEach(r => r.disabled = isDisabled);
   Array.from(outputFormatRadios).forEach(r => r.disabled = isDisabled);
@@ -994,6 +1103,7 @@ function toggleUIState(isDisabled) {
   dropzone.style.pointerEvents = isDisabled ? 'none' : 'auto';
   dropzone.style.opacity = isDisabled ? 0.5 : 1;
 }
+
 
 // Health Poller
 async function checkHealth() {

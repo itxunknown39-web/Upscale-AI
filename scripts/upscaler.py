@@ -21,8 +21,10 @@ import numpy as np
 from scripts.rrdbnet import RRDBNet, register_basicsr_shim
 register_basicsr_shim()
 
+from scripts.model_manager import ensure_model_weights, find_model_weights
+
 # Import centralized configuration
-from scripts.config import TEMP_OUTPUT_DIR, TILE_SIZE, TILE_PAD, PRE_PAD
+from scripts.config import TEMP_OUTPUT_DIR, TILE_SIZE, TILE_PAD, PRE_PAD, MAX_OUTPUT_DIMENSION
 
 logger = logging.getLogger("AdobeStockUpscaler.Upscaler")
 
@@ -107,23 +109,10 @@ class RealESRGANEngine:
             else:
                 net = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
 
-            # Locate weight file
-            filename = f"{self.model_name}.pth"
-            model_path = None
-            candidates = [
-                os.path.join("experiments/pretrained_models", filename),
-                os.path.join("weights", filename),
-                os.path.join("Real-ESRGAN/experiments/pretrained_models", filename),
-                os.path.join("/content/Upscale-AI/experiments/pretrained_models", filename),
-                os.path.join("/content/Upscale-AI/weights", filename)
-            ]
-            for c in candidates:
-                if os.path.exists(c):
-                    model_path = os.path.abspath(c)
-                    break
-
-            if not model_path:
-                self.init_error = f"Pretrained weight file '{filename}' not found on disk."
+            # Locate or auto-download weight file cleanly without basicsr
+            success, model_path, err_msg = ensure_model_weights(self.model_name, auto_download=True)
+            if not success or not model_path:
+                self.init_error = f"Model weights '{self.model_name}.pth' not found. Please place weights in 'weights/' folder. ({err_msg})"
                 logger.error(self.init_error)
                 return False
 
